@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"zmyz_exporter/basic"
+	"zmyz_exporter/utils"
 )
 
 func Registry() {
@@ -32,4 +33,5 @@ func Registry() {
 
 func main() {
 	Registry()
+	utils.ReadNetWorkConfig()
 }
