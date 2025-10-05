@@ -1,84 +1,99 @@
 package basic
 
 import (
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/disk"
 	"github.com/shirou/gopsutil/mem"
-	"time"
 )
 
-// 定义一个结构体来封装指标收集器
+// 定义结构体封装所有指标描述符
 type basicMetrics struct {
-	cpuUsage      prometheus.Gauge
-	memUsage      prometheus.Gauge
-	totalmemUsage prometheus.Gauge
-	stgUsage      prometheus.Gauge
-	totalstgUsage prometheus.Gauge
+	cpuUsageDesc *prometheus.Desc
+	memUsageDesc *prometheus.Desc
+	totalMemDesc *prometheus.Desc
+	stgUsageDesc *prometheus.Desc
+	totalStgDesc *prometheus.Desc
 }
 
-// 构造函数：创建并返回一个 basicMetrics 实例
+// 构造函数：创建指标描述符
 func NewMetrics() *basicMetrics {
 	return &basicMetrics{
-		cpuUsage: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "system_cpu_usage_percentage",
-			Help: "CPU usage percentage.",
-		}),
-		memUsage: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "system_memory_usage_bytes",
-			Help: "Memory usage bytes.",
-		}),
-		totalmemUsage: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "system_total_memory_bytes",
-			Help: "Memory total bytes.",
-		}),
-		stgUsage: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "system_stg_usage_bytes",
-			Help: "stg usage bytes.",
-		}),
-		totalstgUsage: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "system_total_stg_bytes",
-			Help: "stg total bytes.",
-		}),
+		cpuUsageDesc: prometheus.NewDesc(
+			"system_cpu_usage_percentage",
+			"CPU usage percentage.",
+			nil, nil,
+		),
+		memUsageDesc: prometheus.NewDesc(
+			"system_memory_usage_bytes",
+			"Memory usage bytes.",
+			nil, nil,
+		),
+		totalMemDesc: prometheus.NewDesc(
+			"system_total_memory_bytes",
+			"Memory total bytes.",
+			nil, nil,
+		),
+		stgUsageDesc: prometheus.NewDesc(
+			"system_stg_usage_bytes",
+			"Storage usage bytes.",
+			nil, nil,
+		),
+		totalStgDesc: prometheus.NewDesc(
+			"system_total_stg_bytes",
+			"Storage total bytes.",
+			nil, nil,
+		),
 	}
 }
 
-// Collector 接口的 Describe 方法，用于描述所有指标
+// Describe 实现 prometheus.Collector 接口
 func (m *basicMetrics) Describe(ch chan<- *prometheus.Desc) {
-	m.cpuUsage.Describe(ch)
-	m.memUsage.Describe(ch)
-	m.totalmemUsage.Describe(ch)
-	m.stgUsage.Describe(ch)
-	m.totalstgUsage.Describe(ch)
+	ch <- m.cpuUsageDesc
+	ch <- m.memUsageDesc
+	ch <- m.totalMemDesc
+	ch <- m.stgUsageDesc
+	ch <- m.totalStgDesc
 }
 
-// Collector 接口的 Collect 方法，用于收集并更新指标
+// Collect 实现 prometheus.Collector 接口
 func (m *basicMetrics) Collect(ch chan<- prometheus.Metric) {
 	// 获取 CPU 使用率
-	cpuStats, err := cpu.Percent(time.Second, false)
-	if err == nil && len(cpuStats) > 0 {
-		m.cpuUsage.Set(cpuStats[0])
+	if cpuStats, err := cpu.Percent(time.Second, false); err == nil && len(cpuStats) > 0 {
+		ch <- prometheus.MustNewConstMetric(
+			m.cpuUsageDesc,
+			prometheus.GaugeValue,
+			cpuStats[0],
+		)
 	}
 
-	// 获取内存使用情况、总内存
-	v, err := mem.VirtualMemory()
-	if err == nil {
-		m.memUsage.Set(float64(v.Used))
-		m.totalmemUsage.Set(float64(v.Total))
+	// 获取内存使用情况
+	if v, err := mem.VirtualMemory(); err == nil {
+		ch <- prometheus.MustNewConstMetric(
+			m.memUsageDesc,
+			prometheus.GaugeValue,
+			float64(v.Used),
+		)
+		ch <- prometheus.MustNewConstMetric(
+			m.totalMemDesc,
+			prometheus.GaugeValue,
+			float64(v.Total),
+		)
 	}
 
 	// 获取硬盘使用情况
-	diskStats, err := disk.Usage("D:\\")
-	if err == nil {
-		m.totalstgUsage.Set(float64(diskStats.Total))
-		m.stgUsage.Set(float64(diskStats.Used))
+	if diskStats, err := disk.Usage("/"); err == nil {
+		ch <- prometheus.MustNewConstMetric(
+			m.stgUsageDesc,
+			prometheus.GaugeValue,
+			float64(diskStats.Used),
+		)
+		ch <- prometheus.MustNewConstMetric(
+			m.totalStgDesc,
+			prometheus.GaugeValue,
+			float64(diskStats.Total),
+		)
 	}
-
-	// 将指标发送到 channel
-	m.cpuUsage.Collect(ch)
-	m.memUsage.Collect(ch)
-	m.totalmemUsage.Collect(ch)
-	m.stgUsage.Collect(ch)
-	m.totalstgUsage.Collect(ch)
-
 }

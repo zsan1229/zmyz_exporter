@@ -2,39 +2,77 @@ package network
 
 import (
 	"fmt"
-	"golang.org/x/text/encoding/simplifiedchinese"
-	"golang.org/x/text/transform"
-	"io/ioutil"
 	"os/exec"
-	"runtime"
-	"strings"
+	"regexp"
+	"strconv"
+	"zmyz_exporter/utils"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
-// 解决windows下结果乱码
-func decodeGBK(s []byte) string {
-	reader := transform.NewReader(strings.NewReader(string(s)), simplifiedchinese.GBK.NewDecoder())
-	d, _ := ioutil.ReadAll(reader)
-	return string(d)
+func PingIP() []map[string]string {
+	IPS := utils.ReadNetWorkConfig()
+	var cmd *exec.Cmd
+	var match []string
+	var res []map[string]string
+	for _, v := range IPS {
+		cmd = exec.Command("ping", "-c", "1", "-W", "2", v.Value)
+		output, err := cmd.CombinedOutput()
+		outStr := string(output)
+		// fmt.Println(outStr)
+		// 匹配 time=后面的数字 (可以包含小数)
+		re := regexp.MustCompile(`time=([\d.]+)`)
+		match = re.FindStringSubmatch(outStr)
+		var time string
+		if len(match) <= 1 || err != nil {
+			time = "0"
+			fmt.Println("No match or Time out")
+		} else {
+			time = match[1]
+			fmt.Println("Time:", match[1]) // 输出 189
+		}
+		res = append(res, map[string]string{v.Name: time})
+	}
+	fmt.Println(res[0]["上海联通"])
+	return res
 }
 
-func PingIP(ip string) {
-	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		// Windows 下 ping 默认发送 4 次
-		cmd = exec.Command("ping", "-n", "1", ip)
-	} else {
-		// Linux / macOS 下
-		cmd = exec.Command("ping", "-c", "1", ip)
+type PingCollector struct {
+	latencyDesc *prometheus.Desc
+}
+
+func NewPingCollector() *PingCollector {
+	return &PingCollector{
+		latencyDesc: prometheus.NewDesc(
+			"ping_latency_ms",
+			"Ping latency time in milliseconds",
+			[]string{"target"},
+			nil,
+		),
 	}
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		panic(fmt.Errorf("ping 执行失败: %v", err))
+}
+
+// Describe 描述指标
+func (c *PingCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.latencyDesc
+}
+
+// Collect 收集指标
+func (c *PingCollector) Collect(ch chan<- prometheus.Metric) {
+	results := PingIP()
+
+	for _, item := range results {
+		for name, val := range item {
+			value, err := strconv.ParseFloat(val, 64)
+			if err != nil {
+				value = 0
+			}
+			ch <- prometheus.MustNewConstMetric(
+				c.latencyDesc,
+				prometheus.GaugeValue,
+				value,
+				name,
+			)
+		}
 	}
-	var outStr string
-	if runtime.GOOS == "windows" {
-		outStr = decodeGBK(output)
-	} else {
-		outStr = string(output)
-	}
-	fmt.Println(outStr)
 }

@@ -12,7 +12,7 @@ type NetWorkConfig struct {
 
 func ReadNetWorkConfig() []NetWorkConfig {
 	viper.SetConfigName("network")
-	viper.AddConfigPath("../config/")
+	viper.AddConfigPath("config/")
 	viper.SetConfigType("yaml")
 	err := viper.ReadInConfig()
 	if err != nil {
@@ -23,6 +23,8 @@ func ReadNetWorkConfig() []NetWorkConfig {
 	if err != nil {
 		panic(fmt.Errorf("unmarshal config error: %s \n", err))
 	}
-	fmt.Printf("%+v\n", configs)
+	// fmt.Printf("%+v\n", configs)
+	// fmt.Println(configs[1].Name)
+	// fmt.Println(configs[1].Value)
 	return configs
 }

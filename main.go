@@ -2,12 +2,14 @@ package main
 
 import (
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
 	"net/http"
 	"zmyz_exporter/basic"
-	"zmyz_exporter/utils"
+	"zmyz_exporter/network"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	// "zmyz_exporter/utils"
 )
 
 func Registry() {
@@ -16,7 +18,8 @@ func Registry() {
 
 	// 创建并注册自定义指标收集器
 	basicExporterMetrics := basic.NewMetrics()
-	reg.MustRegister(basicExporterMetrics)
+	pingCollector := network.NewPingCollector()
+	reg.MustRegister(basicExporterMetrics, pingCollector)
 
 	// 设置 HTTP 处理程序来暴露 /metrics 端点
 	http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{
@@ -33,5 +36,5 @@ func Registry() {
 
 func main() {
 	Registry()
-	utils.ReadNetWorkConfig()
+	//utils.ReadNetWorkConfig()
 }
